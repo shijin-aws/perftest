@@ -541,6 +541,10 @@ struct perftest_parameters {
 	int				use_rocm;
 	int				rocm_device_id;
 #endif
+#ifdef HAVE_HL
+	int				use_hl;
+	char			*hl_device_bus_id;
+#endif
 	char				*mmap_file;
 	unsigned long			mmap_offset;
 	/* New test params format pilot. will be used in all flags soon,. */
