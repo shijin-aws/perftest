@@ -1744,9 +1744,7 @@ int create_single_mr(struct pingpong_context *ctx, struct perftest_parameters *u
 
 
 	/* Initialize buffer with random numbers except in WRITE_LAT test that it 0's */
-#ifdef HAVE_CUDA
-	if (!user_param->use_cuda) {
-#endif
+	if (can_init_buff) {
 		srand(time(NULL));
 		if (user_param->verb == WRITE && user_param->tst == LAT) {
 			memset(ctx->buf[qp_index], 0, ctx->buff_size);
@@ -1755,9 +1753,7 @@ int create_single_mr(struct pingpong_context *ctx, struct perftest_parameters *u
 				((char*)ctx->buf[qp_index])[i] = (char)rand();
 			}
 		}
-#ifdef HAVE_CUDA
 	}
-#endif
 	return SUCCESS;
 }
 
