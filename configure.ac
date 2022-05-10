@@ -40,6 +40,7 @@ AC_SUBST(MAJOR_VERSION)
 AC_SUBST(MINOR_VERSION)
 
 AC_ARG_VAR(CUDA_H_PATH, help-string)
+AC_ARG_VAR(HL_H_PATH, help-string)
 AC_ARG_VAR(RANLIB, ranlib tool)
 
 AC_ARG_ENABLE([ibv_wr_api],
@@ -251,6 +252,12 @@ if [test "$CUDA_H_PATH" ]; then
 	AC_DEFINE([HAVE_CUDA], [1], [Enable CUDA feature])
 	AC_DEFINE_UNQUOTED([CUDA_PATH], "$CUDA_H_PATH" , [Enable CUDA feature])
 	LIBS=$LIBS" -lcuda"
+fi
+
+if [test "$HL_H_PATH" ]; then
+	AC_DEFINE([HAVE_HL], [1], [Enable Habana Labs feature])
+	AC_DEFINE_UNQUOTED([HL_PATH], "$HL_H_PATH" , [Enable Habana Labs feature])
+	LIBS=$LIBS" -lhl-thunk"
 fi
 
 AC_TRY_LINK([#include <infiniband/verbs.h>],
