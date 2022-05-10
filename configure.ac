@@ -257,7 +257,7 @@ fi
 if [test "$HL_H_PATH" ]; then
 	AC_DEFINE([HAVE_HL], [1], [Enable Habana Labs feature])
 	AC_DEFINE_UNQUOTED([HL_PATH], "$HL_H_PATH" , [Enable Habana Labs feature])
-	LIBS=$LIBS" -lhl-thunk"
+	LIBS=$LIBS" -L/usr/lib/habanalabs -lhl-thunk"
 fi
 
 AC_TRY_LINK([#include <infiniband/verbs.h>],
