@@ -178,6 +178,22 @@ static int pp_free_rocm(struct pingpong_context *ctx)
 }
 #endif
 
+/*----------------------------------------------------------------------------*/
+#ifdef HAVE_HL
+static int pp_init_hl(struct pingpong_context *ctx, char *hl_device_bus_id)
+{
+	ctx->hl_fd = hlthunk_open(2, NULL);
+	if (ctx->hl_fd < 0)
+		return 1;
+	printf("Using hl device with fd %d\n", ctx->hl_fd);
+	return 0;
+}
+static int pp_free_hl(struct pingpong_context *ctx)
+{
+	return hlthunk_close(ctx->hl_fd);
+}
+#endif
+
 static int pp_init_mmap(struct pingpong_context *ctx, size_t size,
 			const char *fname, unsigned long offset)
 {
@@ -1402,6 +1418,18 @@ int destroy_ctx(struct pingpong_context *ctx,
 	}
 	else
 	#endif
+        #ifdef HAVE_HL
+	if (user_param->use_hl) {
+		for (i = 0; i < dereg_counter; i++) {
+			void *d_A = ctx->buf[i];
+			printf("deallocating HL buffer %p\n", d_A);
+			/* Using physical address. Nothing to free for now. */
+			/* hlthunk_device_memory_free(ctx->hl_fd, d_A); */
+		}
+		pp_free_hl(ctx);
+	}
+	else
+	#endif
 	if (user_param->mmap_file != NULL) {
 		pp_free_mmap(ctx);
 	} else if (ctx->is_contig_supported == FAILURE) {
@@ -1549,7 +1577,8 @@ int create_single_mr(struct pingpong_context *ctx, struct perftest_parameters *u
 {
 	int i;
 	int flags = IBV_ACCESS_LOCAL_WRITE;
-
+	int dmabuf_fd = 0;
+	int can_init_buff = 1;
 
 	#if defined(__FreeBSD__)
 	ctx->is_contig_supported = FAILURE;
@@ -1589,6 +1618,7 @@ int create_single_mr(struct pingpong_context *ctx, struct perftest_parameters *u
 		printf("allocated GPU buffer address at %016llx pointer=%p\n",
 		       d_A, (void *)d_A);
 		ctx->buf[qp_index] = (void *)d_A;
+		can_init_buff = 0;
 	} else
 	#endif
 
@@ -1613,6 +1643,32 @@ int create_single_mr(struct pingpong_context *ctx, struct perftest_parameters *u
 	} else
 	#endif
 
+#ifdef HAVE_HL
+	if (user_param->use_hl) {
+		void* d_A;
+		const size_t gpu_page_size = 4096;
+		size_t size = (ctx->buff_size + gpu_page_size - 1) &
+			~(gpu_page_size - 1);
+		/* DRAM allocator doesn't work in gaudi. Use a physical address of the HBM. */
+		/* d_A = hlthunk_device_memory_alloc(ctx->hl_fd, size, 1, 0); */
+		d_A = 0x20000000; // [0x20000000, 0x800000000)
+		if (d_A == NULL) {
+			fprintf(stderr, "Failed to allocate HL memory on fd %d of size %zd\n",
+				ctx->hl_fd, size);
+			return FAILURE;
+		}
+		dmabuf_fd = hlthunk_device_memory_export_dmabuf_fd(ctx->hl_fd,
+								   d_A, size, 0);
+		if (dmabuf_fd < 0) {
+			fprintf(stderr, "Failed to export dmabuf. sz[%zd] ptr[%p] err[%d]\n",
+				size, d_A, dmabuf_fd);
+			return FAILURE;
+		}
+		printf("allocated %zd bytes of GPU buffer at %p on fd %d\n", size, d_A, dmabuf_fd);
+		ctx->buf[qp_index] = d_A;
+		can_init_buff = 0;
+	} else
+#endif
 	if (user_param->mmap_file != NULL) {
 		#if defined(__FreeBSD__)
 		posix_memalign(ctx->buf, user_param->cycle_buffer, ctx->buff_size);
@@ -1670,8 +1726,13 @@ int create_single_mr(struct pingpong_context *ctx, struct perftest_parameters *u
 	}
 #endif
 
-	/* Allocating Memory region and assigning our buffer to it. */
-	ctx->mr[qp_index] = ibv_reg_mr(ctx->pd, ctx->buf[qp_index], ctx->buff_size, flags);
+	if (dmabuf_fd == 0) {
+		/* Allocating Memory region and assigning our buffer to it. */
+		ctx->mr[qp_index] = ibv_reg_mr(ctx->pd, ctx->buf[qp_index], ctx->buff_size, flags);
+	} else {
+		ctx->mr[qp_index] = ibv_reg_dmabuf_mr(ctx->pd, 0, ctx->buff_size, (uintptr_t)ctx->buf[qp_index],
+						      dmabuf_fd, flags);
+	}
 
 	if (!ctx->mr[qp_index]) {
 		fprintf(stderr, "Couldn't allocate MR\n");
@@ -1957,6 +2018,15 @@ int ctx_init(struct pingpong_context *ctx, struct perftest_parameters *user_para
 	if (user_param->use_rocm) {
 		if (pp_init_rocm(ctx, user_param->rocm_device_id)) {
 			fprintf(stderr, "Couldn't initialize ROCm device\n");
+			return FAILURE;
+		}
+	}
+	#endif
+
+        #ifdef HAVE_HL
+	if (user_param->use_hl) {
+		if (pp_init_hl(ctx, user_param->hl_device_bus_id)) {
+			fprintf(stderr, "Couldn't initialize HL device\n");
 			return FAILURE;
 		}
 	}
