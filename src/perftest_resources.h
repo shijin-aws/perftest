@@ -216,6 +216,7 @@ struct pingpong_context {
 	struct ibv_xrcd				*xrc_domain;
 	int 					fd;
 	#endif
+	int					hl_fd;
 };
 
  struct pingpong_dest {
