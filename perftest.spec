@@ -21,6 +21,9 @@ gen3 uverbs microbenchmarks
 %if %{?_cuda_h_path:1}0
         CUDA_H_PATH=%{_cuda_h_path}
 %endif
+%if %{?_hl_h_path:1}0
+        HL_H_PATH=%{_hl_h_path}
+%endif
 %{__make}
 chmod -x runme
 
