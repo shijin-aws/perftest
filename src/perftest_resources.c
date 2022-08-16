@@ -182,7 +182,7 @@ static int pp_free_rocm(struct pingpong_context *ctx)
 #ifdef HAVE_HL
 static int pp_init_hl(struct pingpong_context *ctx, char *hl_device_bus_id)
 {
-	ctx->hl_fd = hlthunk_open(2, NULL);
+	ctx->hl_fd = hlthunk_open(2, hl_device_bus_id);
 	if (ctx->hl_fd < 0)
 		return 1;
 	printf("Using hl device with fd %d\n", ctx->hl_fd);
